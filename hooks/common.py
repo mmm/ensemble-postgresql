@@ -1,7 +1,6 @@
-# vim: syntax=python
 
 import os
-import MySQLdb
+from pyPgSQL import PgSQL
 import subprocess
 
 try:
@@ -19,17 +18,33 @@ database_name, _ = change_unit.split("/")
 user = change_unit.split("/")[0]
 connection = None
 lastrun_path = '/var/lib/ensemble/%s.%s.lastrun' % (database_name,user)
-slave_configured_path = '/var/lib/ensemble.slave.configured.for.%s' % database_name
-slave_configured = os.path.exists(slave_configured_path)
-slave = os.path.exists('/var/lib/ensemble/i.am.a.slave')
-broken_path = '/var/lib/ensemble/%s.mysql.broken' % database_name
-broken = os.path.exists(broken_path)
 
-def get_db_cursor():
-    # Connect to mysql
-    passwd = open("/var/lib/ensemble/mysql.passwd").read().strip()
-    print passwd
-    connection = MySQLdb.connect(user="root", host="localhost", passwd=passwd)
+def get_connection():
+    return PgSQL.connect(database_name)
 
-    return connection.cursor()
+def run_sql(sql):
+    print "[%s]" % sql
+    return get_connection().execute(sql)
+
+def database_already_exists(database_name):
+    results = run_sql("show databases")
+    databases = [i[0] for i in results]
+    if database_name in databases:
+        return true
+    return false
+
+def create_user(user,database_name):
+    # Create database user and grant access
+    service_password = "".join(random.sample(string.letters, 10))
+
+    runsql(
+        "grant replication client on *.* to `%s` identified by '%s'"  % (
+        user,
+        service_password))
+
+    runsql(
+        "grant all on `%s`.* to `%s` identified by '%s'" % (
+        database_name,
+        user,
+        service_password))
 
